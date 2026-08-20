@@ -67,8 +67,9 @@ description = "Active mise environment(s), from stempler/config.fish"
 shell = ["fish", "--no-config"]
 when = "source ~/.config/fish/functions/__mise_env_active.fish; __mise_env_active | grep -q ."
 command = "source ~/.config/fish/functions/__mise_env_active.fish; __mise_env_active | paste -sd,"
-# Wrap the env name in literal square brackets (escaped so Starship treats them
-# as text, not styling syntax) and colour the whole thing blue. Plain `blue`
-# and brackets survive terminals that ignore dim/bright SGR codes.
-format = "[\\[$output\\]]($style) "
+# Wrap the env name in literal parentheses (escaped so Starship treats them as
+# text, not its conditional-group syntax) and colour the whole thing blue.
+# Parentheses distinguish it from the bracketed git status; plain `blue`
+# survives terminals that ignore dim/bright SGR codes.
+format = "[\\($output\\)]($style) "
 style = "blue"
