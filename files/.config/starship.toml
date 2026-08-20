@@ -67,7 +67,8 @@ description = "Active mise environment(s), from stempler/config.fish"
 shell = ["fish", "--no-config"]
 when = "source ~/.config/fish/functions/__mise_env_active.fish; __mise_env_active | grep -q ."
 command = "source ~/.config/fish/functions/__mise_env_active.fish; __mise_env_active | paste -sd,"
-# The `mise:` label is dimmed so the env name (in $style) stands out; a lighter
-# cyan than the bold-cyan directory keeps them from blending together.
-format = "[mise:](dimmed)[$output]($style) "
-style = "bright-cyan"
+# Wrap the env name in literal square brackets (escaped so Starship treats them
+# as text, not styling syntax) and colour the whole thing blue. Plain `blue`
+# and brackets survive terminals that ignore dim/bright SGR codes.
+format = "[\\[$output\\]]($style) "
+style = "blue"
