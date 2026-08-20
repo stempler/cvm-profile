@@ -1,0 +1,8 @@
+description: Fish as the agent's default shell, with fisher + stempler/config.fish
+packages: [fish]            # apt-installed as root -> /usr/bin/fish
+shell: /usr/bin/fish        # agent's login shell
+domains:                    # merged into the egress allowlist
+  - raw.githubusercontent.com   # fisher bootstrap (fisher.fish, pinned by commit)
+  - api.github.com              # fisher plugin tarball endpoint (owner/repo)
+  - codeload.github.com         # tarball download (api.github.com redirects here)
+hook: hook.sh               # runs as the agent, after files & packages
