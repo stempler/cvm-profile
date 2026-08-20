@@ -34,4 +34,64 @@ fi
 echo "hook: installing/updating stempler/config.fish"
 "$FISH_BIN" -c 'fisher install stempler/config.fish'
 
+# 3. Install the Starship prompt (https://starship.rs).
+#
+# Pinned to a specific release and verified against its published SHA256 so the
+# download is a byte-for-byte known payload rather than tracking latest — the
+# same discipline as the fisher bootstrap above. Bump the version comment, the
+# renovate marker, and STARSHIP_VERSION together.
+#
+# renovate: starship 1.26.0
+STARSHIP_VERSION=v1.26.0
+STARSHIP_BIN="$HOME/.local/bin/starship"
+STARSHIP_ASSET=starship-x86_64-unknown-linux-gnu.tar.gz
+STARSHIP_BASE="https://github.com/starship/starship/releases/download/${STARSHIP_VERSION}"
+
+install_starship() {
+    local arch tmp expected
+    arch=$(uname -m)
+    if [ "$arch" != "x86_64" ]; then
+        echo "hook: unsupported architecture '$arch'; the starship asset is x86_64-only" >&2
+        return 1
+    fi
+
+    tmp=$(mktemp -d)
+
+    echo "hook: downloading starship ${STARSHIP_VERSION}"
+    if ! curl -fsSL "${STARSHIP_BASE}/${STARSHIP_ASSET}" -o "$tmp/starship.tar.gz" \
+        || ! curl -fsSL "${STARSHIP_BASE}/${STARSHIP_ASSET}.sha256" -o "$tmp/starship.sha256"; then
+        rm -rf "$tmp"
+        echo "hook: failed to download starship" >&2
+        return 1
+    fi
+
+    # The published .sha256 asset is a bare hash; sha256sum -c wants "<hash>  <file>".
+    expected=$(cut -d' ' -f1 < "$tmp/starship.sha256")
+    if ! echo "${expected}  $tmp/starship.tar.gz" | sha256sum -c - >/dev/null 2>&1; then
+        rm -rf "$tmp"
+        echo "hook: starship checksum verification FAILED; aborting" >&2
+        return 1
+    fi
+    echo "hook: starship checksum verified"
+
+    mkdir -p "$HOME/.local/bin"
+    tar -xzf "$tmp/starship.tar.gz" -C "$HOME/.local/bin" starship
+    chmod +x "$STARSHIP_BIN"
+    rm -rf "$tmp"
+}
+
+# Install only when missing or when the pinned version differs, so boots and
+# `profile apply` don't re-download an already-current binary.
+#
+# The fish loader (conf.d/starship.fish) and prompt config (starship.toml) are
+# NOT installed here: they are static files, shipped through the profile's
+# files/ tree and installed into the agent home by code-vm before this hook
+# runs. Only the binary — which must be downloaded, verified and extracted —
+# needs the hook.
+if [ -x "$STARSHIP_BIN" ] && "$STARSHIP_BIN" --version 2>/dev/null | grep -qF "${STARSHIP_VERSION#v}"; then
+    echo "hook: starship ${STARSHIP_VERSION} already present"
+else
+    install_starship
+fi
+
 echo "hook: done"

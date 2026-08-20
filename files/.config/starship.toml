@@ -1,0 +1,50 @@
+# Starship prompt configuration shipped by the stempler cvm-profile.
+# Docs: https://starship.rs/config/
+#
+# Tuned for the code-vm agent sandbox: it makes clear which VM you are on,
+# shows the working directory and git state, how long the last command took,
+# and whether it succeeded. Symbols are kept to widely-supported Unicode so the
+# prompt renders without a Nerd Font installed.
+
+# Two-line prompt (command line separated from the input character) with a
+# blank line before each new prompt — easier to read in long agent sessions.
+add_newline = true
+
+format = """
+$hostname\
+$directory\
+$git_branch\
+$git_status\
+$cmd_duration\
+$line_break\
+$character"""
+
+# Always show the host so it is obvious you are inside the sandbox VM, not on
+# the host machine.
+[hostname]
+ssh_only = false
+format = "[$hostname]($style) "
+style = "bold yellow"
+trim_at = "."
+
+[directory]
+truncation_length = 4
+truncate_to_repo = true
+style = "bold cyan"
+
+[git_branch]
+symbol = ""
+format = "[$branch]($style) "
+style = "bold magenta"
+
+[git_status]
+style = "bold red"
+
+[cmd_duration]
+min_time = 2000
+format = "took [$duration]($style) "
+style = "bold yellow"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
