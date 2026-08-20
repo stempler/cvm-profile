@@ -15,15 +15,10 @@ $hostname\
 $directory\
 $git_branch\
 $git_status\
+${custom.mise_env}\
 $cmd_duration\
 $line_break\
 $character"""
-
-# Right prompt: the active mise environment(s), mirroring where
-# stempler/config.fish's fish_right_prompt showed them (Starship owns
-# fish_right_prompt, so the indicator has to live here to survive).
-# This must stay a top-level key — keep it above the first [table] header.
-right_format = "${custom.mise_env}"
 
 # Always show the host so it is obvious you are inside the sandbox VM, not on
 # the host machine.
@@ -55,20 +50,22 @@ style = "bold yellow"
 success_symbol = "[❯](bold green)"
 error_symbol = "[❯](bold red)"
 
-# Reuse stempler/config.fish's detection rather than duplicating it. Sourcing
-# the function file under `fish --no-config` avoids re-running conf.d (which
-# would re-activate mise and re-init starship) on every prompt. Starship feeds
-# `command` to the shell on stdin, so the shell list must NOT include `-c`. The
-# command prints the "mise:<envs>" label itself, or nothing when no named env
-# is active, so the module renders empty (Starship drops it entirely, spaces
-# included) in the common case.
+# Active mise environment(s), shown inline in the main prompt (between git and
+# command duration). Reuse stempler/config.fish's detection rather than
+# duplicating it. Sourcing the function file under `fish --no-config` avoids
+# re-running conf.d (which would re-activate mise and re-init starship) on every
+# prompt. Starship feeds the command to the shell on stdin, so the shell list
+# must NOT include `-c`.
+#
+# `when` gates display: with no named env active it exits non-zero and Starship
+# drops the whole module — format literals, including the trailing space, and
+# all — so the surrounding modules keep single-spacing. That gating is what
+# lets the trailing space live in `format`: Starship strips trailing whitespace
+# from a command's `$output`, so the separator cannot come from the command.
 [custom.mise_env]
 description = "Active mise environment(s), from stempler/config.fish"
 shell = ["fish", "--no-config"]
-command = "source ~/.config/fish/functions/__mise_env_active.fish; set -l e (__mise_env_active | paste -sd,); test -n \"$e\"; and printf 'mise:%s' \"$e\""
-when = "true"
-# No literal text outside $output: when no env is active the command prints
-# nothing and the module renders as the empty string (a trailing space here
-# would otherwise leak into the right prompt).
-format = "[$output]($style)"
+when = "source ~/.config/fish/functions/__mise_env_active.fish; __mise_env_active | grep -q ."
+command = "source ~/.config/fish/functions/__mise_env_active.fish; __mise_env_active | paste -sd,"
+format = "[mise:$output]($style) "
 style = "cyan"

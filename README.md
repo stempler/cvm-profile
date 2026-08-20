@@ -17,7 +17,7 @@ A [code-vm](https://github.com/wetransform-os/code-vm) profile that makes
 | Starship is installed | `hook.sh` downloads a **pinned, SHA256-verified** release binary to `~/.local/bin` |
 | Starship is enabled + configured | `files/` ships the fish loader and `starship.toml` into the agent home |
 | mise is activated in fish | `files/.config/fish/conf.d/mise.fish` runs `mise activate fish` |
-| active mise env shown in prompt | `starship.toml` right prompt reuses `stempler/config.fish`'s `__mise_env_active` |
+| active mise env shown in prompt | `starship.toml` main prompt reuses `stempler/config.fish`'s `__mise_env_active` |
 
 The hook runs as the agent user on every boot and every `code-vm profile
 apply`, and is idempotent: fisher is only bootstrapped when missing,
@@ -55,20 +55,23 @@ mise is provided by the base sandbox image, so this profile only wires it in:
 - **Activation** — `files/.config/fish/conf.d/mise.fish` runs
   `mise activate fish | source` (guarded by `type -q mise`), so shims, the
   managed environment, and the `mise` helper are available in every fish shell.
-- **Prompt indicator** — the Starship right prompt shows the active mise
-  environment(s) as `mise:<envs>`, e.g. `mise:dev`. Rather than duplicate the
-  detection, the `custom.mise_env` module reuses `stempler/config.fish`'s
+- **Prompt indicator** — the Starship main prompt shows the active mise
+  environment(s) inline as `mise:<envs>`, e.g. `mise:dev` (comma-joined for
+  several), between the git and command-duration segments. Rather than duplicate
+  the detection, the `custom.mise_env` module reuses `stempler/config.fish`'s
   `__mise_env_active` (which reads `mise config ls` and lists loaded
-  `mise.<env>.toml` / `config.<env>.toml` files, excluding `local`). Starship
-  owns `fish_right_prompt`, so the indicator lives in `starship.toml`'s
-  `right_format` — where `config.fish` originally put it — instead of being
-  overridden. When no named environment is active the module renders nothing.
+  `mise.<env>.toml` / `config.<env>.toml` files, excluding `local`). When no
+  named environment is active the module renders nothing.
 
-  Two Starship subtleties are load-bearing here: the module's `shell` list is
-  `["fish", "--no-config"]` with **no** `-c` (Starship pipes the command in on
-  stdin, and `--no-config` avoids re-running `conf.d` on every prompt), and the
-  `format` keeps no literal text outside `$output` so the empty case leaves no
-  stray space in the right prompt.
+  Three Starship subtleties are load-bearing here:
+  - The module's `shell` list is `["fish", "--no-config"]` with **no** `-c`:
+    Starship pipes the command in on stdin, and `--no-config` avoids re-running
+    `conf.d` (which would re-activate mise and re-init Starship) on every prompt.
+  - Display is gated with `when` (not `when = true`): when no env is active it
+    exits non-zero and Starship drops the whole module, so the trailing space in
+    `format` never leaks and the neighbouring segments keep single-spacing.
+  - The separator space must live in `format`, not in the command output —
+    Starship strips trailing whitespace from `$output`.
 
 ## Egress domains
 
