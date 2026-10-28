@@ -18,6 +18,7 @@ A [code-vm](https://github.com/wetransform-os/code-vm) profile that makes
 | Starship is enabled + configured | `files/` ships the fish loader and `starship.toml` into the agent home |
 | mise is activated in fish | `files/.config/fish/conf.d/mise.fish` runs `mise activate fish` |
 | active mise env shown in prompt | `starship.toml` main prompt reuses `stempler/config.fish`'s `__mise_env_active` |
+| agent worktree folders are git-ignored | `files/.config/git/ignore` ships a global gitignore |
 
 The hook runs as the agent user on every boot and every `code-vm profile
 apply`, and is idempotent: fisher is only bootstrapped when missing,
@@ -72,6 +73,21 @@ mise is provided by the base sandbox image, so this profile only wires it in:
     `format` never leaks and the neighbouring segments keep single-spacing.
   - The separator space must live in `format`, not in the command output —
     Starship strips trailing whitespace from `$output`.
+
+## Global gitignore
+
+`files/.config/git/ignore` is installed as `~/.config/git/ignore`, git's
+default global ignore file (used when `core.excludesFile` is unset). It ignores
+the folders where agent sessions keep their worktrees, at repo roots only:
+
+- `/.claude/worktrees/` — narrowed so other `.claude/` content (settings,
+  commands, skills) that repos commit is not affected
+- `/.orca/`
+
+Hiding these from `git status` makes it less likely that an agent mistakes a
+worktree created by another session for leftover clutter and removes it;
+`git clean -fd` also skips ignored paths. It is not a hard guarantee:
+`git clean -fdx` and a plain `rm -rf` still delete them.
 
 ## Egress domains
 
