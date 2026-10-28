@@ -1,0 +1,3 @@
+# Agent worktree folders at repo roots, hidden so agents don't clean them up
+/.claude/worktrees/
+/.orca/
