@@ -95,6 +95,16 @@ record decisions in `REVIEW_NOTES.md` at the repo root (working state, never
 committed), and emit `<promise>REVIEW_CONVERGED</promise>` once a round brings
 nothing new.
 
+The reviewer runs as a subagent, and subagents run in the background. The
+Ralph stop hook fires as soon as the turn ends, so a round that dispatched the
+reviewer and then ended would burn an iteration before any review existed. The
+skill therefore has the reviewer write its report to
+`.claude/review-loop/round-<N>.md` and waits for that file in a foreground
+shell loop, which keeps the turn open. Stopping the loop without convergence
+(a Critical finding that survived two rounds, or a reviewer that never
+reported) means deleting `.claude/ralph-loop.local.md`, as `/cancel-ralph`
+does; merely ending the turn starts the next round.
+
 **`/rl` command** — `files/.claude/commands/rl.md` → `~/.claude/commands/rl.md`.
 Starts a [Ralph loop](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/ralph-loop)
 in the current session with the prompt fixed to *"Use the review-loop skill for
