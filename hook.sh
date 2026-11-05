@@ -32,8 +32,12 @@ fi
 
 # 2. Install stempler/config.fish, or update it to latest if already installed.
 #    `fisher install` is idempotent and refreshes the plugin on each run.
+#
+#    stdin is closed explicitly: when stdin is not a TTY, fisher reads plugin
+#    names from it until EOF. `code-vm profile apply` can hand the hook an open
+#    pipe that never closes, and fisher then blocks forever.
 echo "hook: installing/updating stempler/config.fish"
-"$FISH_BIN" -c 'fisher install stempler/config.fish'
+"$FISH_BIN" -c 'fisher install stempler/config.fish' < /dev/null
 
 # 3. Install the Starship prompt (https://starship.rs).
 #
@@ -125,7 +129,7 @@ if [ ! -x "$CLAUDE_BIN" ]; then
 fi
 
 plugin_installed() {
-    "$CLAUDE_BIN" plugin list --json 2>/dev/null \
+    "$CLAUDE_BIN" plugin list --json < /dev/null 2>/dev/null \
         | jq -e --arg p "$1" 'any(.[]?; .id | startswith($p + "@"))' >/dev/null
 }
 
@@ -138,7 +142,7 @@ else
         else
             echo "hook: installing plugin ${plugin} from anthropics/claude-plugins-official"
             # --marketplace adds the marketplace first when it is not known yet.
-            "$CLAUDE_BIN" plugin install "$plugin" --marketplace anthropics/claude-plugins-official
+            "$CLAUDE_BIN" plugin install "$plugin" --marketplace anthropics/claude-plugins-official < /dev/null
         fi
     done
 fi
