@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# code-vm profile hook: ensure fisher is installed and (re)install the
-# stempler/config.fish plugin.
+# code-vm profile hook: ensure fisher is installed, (re)install the
+# stempler/config.fish plugin, install the Starship binary, and install the
+# Claude Code plugins the shipped skill and command depend on.
 #
 # Runs as the agent user (devuser), through the egress proxy, on every boot
 # and every `code-vm profile apply`. It must therefore be idempotent.
@@ -92,6 +93,54 @@ if [ -x "$STARSHIP_BIN" ] && "$STARSHIP_BIN" --version 2>/dev/null | grep -qF "$
     echo "hook: starship ${STARSHIP_VERSION} already present"
 else
     install_starship
+fi
+
+# 4. Claude Code plugins.
+#
+# The profile ships a `review-loop` skill and an `/rl` command (files/.claude)
+# that depend on two plugins from the official marketplace: superpowers (the
+# review skills the loop calls) and ralph-loop (the stop hook that re-feeds the
+# prompt). Plugins live under ~/.claude/plugins, which persists on the guest
+# disk, so only what is missing gets installed; a boot with both present does
+# no network I/O here.
+#
+# Presence is checked as `<plugin>@*`, not `<plugin>@claude-plugins-official`:
+# a copy installed from another source (e.g. the in-app plugin directory, which
+# registers as `@anthropic-plugin-directory`) counts. A second copy of the same
+# plugin would register its hooks twice — ralph-loop's stop hook would then
+# bump the iteration counter twice per turn.
+#
+# Unlike fisher and Starship above, plugins are NOT pinned: `claude plugin
+# install` takes whatever the marketplace currently offers. The CLI has no
+# version selector, and the marketplace clone it keeps is updated on its own
+# schedule.
+#
+# Note: `claude plugin install` rewrites ~/.claude/settings.json (enabledPlugins)
+# by replacing the file, so after a boot that actually installs something the
+# file is agent-owned until the next boot or `code-vm config apply` relocks it.
+# The lock step preserves enabledPlugins across that relock.
+CLAUDE_BIN="$HOME/.local/bin/claude"
+if [ ! -x "$CLAUDE_BIN" ]; then
+    CLAUDE_BIN=$(command -v claude || true)
+fi
+
+plugin_installed() {
+    "$CLAUDE_BIN" plugin list --json 2>/dev/null \
+        | jq -e --arg p "$1" 'any(.[]?; .id | startswith($p + "@"))' >/dev/null
+}
+
+if [ -z "$CLAUDE_BIN" ] || [ ! -x "$CLAUDE_BIN" ]; then
+    echo "hook: claude CLI not found; skipping plugin install" >&2
+else
+    for plugin in superpowers ralph-loop; do
+        if plugin_installed "$plugin"; then
+            echo "hook: plugin ${plugin} already present"
+        else
+            echo "hook: installing plugin ${plugin} from anthropics/claude-plugins-official"
+            # --marketplace adds the marketplace first when it is not known yet.
+            "$CLAUDE_BIN" plugin install "$plugin" --marketplace anthropics/claude-plugins-official
+        fi
+    done
 fi
 
 echo "hook: done"

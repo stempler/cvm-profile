@@ -4,7 +4,9 @@ A [code-vm](https://github.com/wetransform-os/code-vm) profile that makes
 [fish](https://fishshell.com) the agent's default shell, installs
 [fisher](https://github.com/jorgebucaran/fisher), installs/updates the
 `stempler/config.fish` fish configuration, installs and configures the
-[Starship](https://starship.rs) prompt, and activates [mise](https://mise.jdx.dev).
+[Starship](https://starship.rs) prompt, activates [mise](https://mise.jdx.dev),
+and ships a Claude Code review-loop skill and `/rl` command together with
+the plugins they depend on.
 
 ## What it does
 
@@ -19,13 +21,17 @@ A [code-vm](https://github.com/wetransform-os/code-vm) profile that makes
 | mise is activated in fish | `files/.config/fish/conf.d/mise.fish` runs `mise activate fish` |
 | active mise env shown in prompt | `starship.toml` main prompt reuses `stempler/config.fish`'s `__mise_env_active` |
 | agent worktree folders are git-ignored | `files/.config/git/ignore` ships a global gitignore |
+| `review-loop` skill available to Claude | `files/.claude/skills/review-loop/SKILL.md` |
+| `/rl` starts a bounded review loop | `files/.claude/commands/rl.md` |
+| superpowers + ralph-loop plugins installed | `hook.sh` runs `claude plugin install` for each when missing |
 
 The hook runs as the agent user on every boot and every `code-vm profile
 apply`, and is idempotent: fisher is only bootstrapped when missing,
 `fisher install stempler/config.fish` both installs and refreshes to latest,
-and Starship is only re-downloaded when missing or when the pinned version
-changes. The `files/` tree is (re)installed by code-vm on every apply, so the
-shipped config is canonical.
+Starship is only re-downloaded when missing or when the pinned version
+changes, and Claude Code plugins are only installed when absent. The `files/`
+tree is (re)installed by code-vm on every apply, so the shipped config is
+canonical.
 
 ## Starship prompt
 
@@ -74,6 +80,62 @@ mise is provided by the base sandbox image, so this profile only wires it in:
   - The separator space must live in `format`, not in the command output —
     Starship strips trailing whitespace from `$output`.
 
+## Claude Code: review loop
+
+The profile ships two files into `~/.claude` and installs the plugins they
+need. code-vm forbids a profile from shipping `.claude/settings.json` and
+`.claude/settings.local.json` (those are root-locked); every other path under
+`.claude/` is an ordinary profile file, re-installed on each boot and apply.
+
+**`review-loop` skill** — `files/.claude/skills/review-loop/SKILL.md` →
+`~/.claude/skills/review-loop/SKILL.md`. One round of review-and-fix on the
+current branch: request a review (superpowers:requesting-code-review), triage
+(superpowers:receiving-code-review), fix only Critical/Important findings,
+record decisions in `REVIEW_NOTES.md` at the repo root (working state, never
+committed), and emit `<promise>REVIEW_CONVERGED</promise>` once a round brings
+nothing new.
+
+**`/rl` command** — `files/.claude/commands/rl.md` → `~/.claude/commands/rl.md`.
+Starts a [Ralph loop](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/ralph-loop)
+in the current session with the prompt fixed to *"Use the review-loop skill for
+one round."* and the completion promise fixed to `REVIEW_CONVERGED`, so the
+loop ends when the skill reports convergence. The only argument is the maximum
+number of iterations, default 4:
+
+```
+/rl        # up to 4 rounds
+/rl 8      # up to 8 rounds
+```
+
+The command is named `/rl` rather than `/review-loop` because user skills are
+also exposed as slash commands, so `/review-loop` already belongs to the skill.
+
+The command locates ralph-loop's `setup-ralph-loop.sh` at run time: it reads
+`~/.claude/plugins/installed_plugins.json` for any plugin id starting with
+`ralph-loop@` (whichever marketplace it came from) and falls back to the newest
+`~/.claude/plugins/cache/*/ralph-loop/*/` directory. Plugin install paths carry
+the version (and, for some sources, a commit hash), so a hard-coded path would
+break on every plugin update.
+
+**Plugins** — `hook.sh` installs `superpowers` and `ralph-loop` from the
+official marketplace (`anthropics/claude-plugins-official`) when no
+`<plugin>@*` entry is installed yet. The match is deliberately loose: a copy
+installed by hand from another source (the in-app plugin directory registers
+as `@anthropic-plugin-directory`) counts, because a second copy would register
+the plugin's hooks twice and ralph-loop's stop hook would advance the
+iteration counter twice per turn. Plugins persist under `~/.claude/plugins` on
+the guest disk, so a boot with both present makes no network requests here.
+
+Two things to know:
+
+- Plugins are **not pinned**, unlike fisher and Starship: the Claude CLI has
+  no version selector, so an install takes what the marketplace offers.
+- `claude plugin install` records enablement in `~/.claude/settings.json` by
+  replacing the file. After a boot that actually installs a plugin, that file
+  is agent-owned until the next boot or `code-vm config apply` relocks it;
+  code-vm's lock step preserves `enabledPlugins` across the relock. Boots that
+  install nothing leave the lock untouched.
+
 ## Global gitignore
 
 `files/.config/git/ignore` is installed as `~/.config/git/ignore`, git's
@@ -98,6 +160,9 @@ The profile adds these to the code-vm allowlist (in `profile.yaml`):
 - `codeload.github.com` — where `api.github.com` redirects tarball downloads
 - `github.com` — Starship release download URL (issues the 302 redirect)
 - `release-assets.githubusercontent.com` — where the Starship asset bytes are served
+
+Plugin installs clone the marketplace and plugin repositories from
+`github.com`, which is already listed; no extra domain is needed.
 
 ## Usage
 
